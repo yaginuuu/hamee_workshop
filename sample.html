@@ -1,0 +1,214 @@
+<!DOCTYPE HTML>
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <title>canvas demo</title>
+    </head>
+    <body onload="init();">
+        <canvas id="canvas" height="500" width="500" style="background-color: #000000;"></canvas>
+
+        <script src="https://code.createjs.com/easeljs-0.8.1.min.js"></script>
+
+        <script>
+            var canvas;
+            var stage;
+            var stageWidth;
+            var stageHeight;
+            var count = 30;
+          var sprites;     // spriteを格納する配列
+          var foodCounts = [];
+          var index = 0;
+
+        function Sprite(x, y, radius, color, init_radian) {
+            this.Shape_constructor();
+            this.initialize(x, y, radius, color, init_radian);
+        };
+        createjs.extend(Sprite, createjs.Shape);
+        createjs.promote(Sprite, 'Shape');
+
+        // Spriteクラスのコンストラクタ
+        Sprite.prototype.initialize = function(x, y, radius, color) {
+            this.graphics.beginFill(color).drawCircle(0, 0, radius);
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.is_gather=false;
+            this.gatherX = 0;
+            this.gatherY = 0;
+            this.is_move = true;
+            this.is_fish = true;
+            this.bitmap = drawGoldfish(x,y, radius);
+            this.id = 0;
+            this.food;
+        };
+
+            function init() {
+                canvas = document.getElementById('canvas');
+
+                canvas.addEventListener('click', onClick, false);
+
+                stage = new createjs.Stage('canvas');
+                stageWidth = canvas.width;
+                stageHeight = canvas.height;
+                sprites = new Array();
+
+                for (var i = 0; i < count; i++) {
+                    var x = stageWidth * Math.random();
+                    var y = stageHeight * Math.random();
+                    var radius = 25;
+
+                    var sprite = new Sprite(x, y, radius, 'red');
+
+                    // var goldfish = drawGoldfish(x, y, radius);
+
+                    stage.addChild(sprite.bitmap);
+                    sprites.push(sprite);
+                }
+
+                createjs.Ticker.addEventListener('tick', onTick);
+            }
+
+            function drawGoldfish(x, y, radius) {
+              var bitmap = new createjs.Bitmap('img/kingyo.png');
+              bitmap.scaleX /= 10;
+              bitmap.scaleY /= 10;
+              bitmap.x = x;
+              bitmap.y = y+ bitmap.scaleY;
+              bitmap.radius = radius;
+              bitmap.vx = -radius / 2 + radius * Math.random();
+              bitmap.vy = -radius / 2 + radius * Math.random();
+
+              return bitmap;
+            }
+
+
+        function move(circle){
+                    // var circle = ci;
+                    var x = circle.x + circle.vx;
+                    var y = circle.y + circle.vy;
+                    var radius = circle.radius;
+
+                    if (x < -radius) {
+                        x = stageWidth + radius;
+                    }
+                    else if (x > stageWidth + radius) {
+                        x = -radius;
+                    }
+
+                    if (y < -radius) {
+                        y = stageHeight + radius;
+                    }
+                    else if (y > stageHeight + radius) {
+                        y = -radius;
+                    }
+
+                    circle.x = x;
+                    circle.y = y;
+
+        }
+
+        /**
+         * 指定した間隔（フレームレート）ごとに呼び出される関数
+         */
+        function onTick() {
+            var sprite_number = sprites.length;
+            for (var i = 0; i < sprite_number; i++) {
+                var sprite = sprites[i];
+
+                if(!sprite.is_move || !sprite.is_fish){
+                  continue;
+                }
+                if(sprite.is_gather){
+                  gatherAnimation(sprite);
+
+                }
+                else{
+                  move(sprite.bitmap);
+                  // sprite.move(x, y, r, radian);                  
+                }
+            }
+
+            // ステージ上のオブジェクトをcanvasに反映
+            stage.update();
+
+            // フレームカウントを毎フレーム増加
+            // frameCount++;
+        }
+
+        /*  canvasがクリックされた時に呼ばれる  */
+        function onClick(e){
+          var x = e.clientX;
+          var y = e.clientY;
+
+      var food = putFood(x,y);
+      food.id = index++;
+        foodCounts[food.id] = 0;
+
+          gatherSprites = new Array();
+
+          var gather_flag = false;
+          for(var i=0; i<sprites.length; i++){
+            // console.log(sprites[i]);
+
+            var r = getDistance(x,y,sprites[i].bitmap.x, sprites[i].bitmap.y);
+            if(r < 120 && sprites[i].is_gather == false){
+              sprites[i].is_gather = true;
+              sprites[i].gatherX = x;
+              sprites[i].gatherY = y;
+              sprites[i].food = food;
+            }
+
+          }
+        }
+
+        function gatherAnimation(sprite){
+          if(sprite.bitmap.x > sprite.gatherX) sprite.bitmap.x -= 1;
+          else if(sprite.bitmap.x < sprite.gatherX) sprite.bitmap.x += 1;
+
+          if(sprite.bitmap.y > sprite.gatherY) sprite.bitmap.y -= 1;
+          else if(sprite.bitmap.y < sprite.gatherY) sprite.bitmap.y += 1;
+
+          var diffX = Math.abs(sprite.bitmap.x-sprite.gatherX);
+          var diffY = Math.abs(sprite.bitmap.y-sprite.gatherY);
+
+          if(diffX < 1 && diffY < 1){
+            sprite.is_gather = false;
+            foodCounts[sprite.food.id]++;
+            console.log(foodCounts[sprite.food.id]);
+            if(foodCounts[sprite.food.id] > 2){
+              stage.removeChild(sprite.food);
+            }
+          }
+        }
+        
+        /* ２点間の距離を計算  */
+        function getDistance(x0, y0, x1, y1){
+          var x = Math.abs(x0-x1);
+          var y = Math.abs(y0-y1);
+          return parseInt(Math.sqrt(x*x+y*y));
+        }
+
+        /*  クリックされた位置に餌を置く */
+        function putFood(x, y){
+          var sprite = new Sprite(x,y, 10, 'brown');
+          sprite.is_fish = false;
+          stage.addChildAt(sprite, 0);
+          sprites.push(sprite);
+
+          return sprite;
+        }
+
+        /**
+         * 角度を度数法から弧度法に変換する関数
+         *
+         * @param Number degree 角度（度数法）
+         * @return Number radian 角度（弧度法）
+         */
+        function degreeToRadian(degree) {
+            var radian = 2 * Math.PI * degree / 360.0;
+            return radian;
+        }
+            
+        </script>
+    </body>
+</html>
